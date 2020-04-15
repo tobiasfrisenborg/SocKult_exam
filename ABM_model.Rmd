@@ -1,30 +1,53 @@
 ---
 title: "ABM_model"
-author: "tfc"
+author: "Mie Arnau Martinez & Tobias Frisenborg Christensen"
 date: "4/15/2020"
 output: word_document
 ---
 
+ABM model:
+Properties of agents:
+  - Knowledge/skill level/performance (Normal distribution, mu=100, sd=15)
+  - Confidence (Percentage score e.g. 1.3 (overconfident) or 0.7 (unconfident))
+      (Very unconfident, slightly unconfident, neutral, slightly overconfident, very overconfident)
+      Confidence is calculated as Skill * Level of Confidence
+  - Reputation: Proportion of correct responses out of total responses
+  
+Actions that agents can perform:
+  - All agents in the group weigh each others solutions 
+  - Having more agents in a group with the same solution increases the confidence in the solution
+  - The group makes a decision based on the weighted solutions (? multiple approaches to group decision making)
+  
+Updating of properties:
+  - Reputation is updated at each round
+  - Self confidence is updated at each round as a function of correct answers (maybe include error)
+
+Experimental setup:
+  - Manipulating 
+      Confidence
+      Group sizes (dyad, trio, more?)
+      Group composition in relation to proportion of over- and unconfident agents
+  - Environment
+      Complex problem (?)
+  - Outcome
+      Performance of group (mean payoff)
+      Performance of group (time to find correct solution)
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(pacman)
+pacman::p_load(tidyverse)
+
+
+
+
+
+
+
+
+
+
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
