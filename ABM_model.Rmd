@@ -14,7 +14,7 @@ Properties of agents:
   - Reputation: Proportion of correct responses out of total responses
   
 Actions that agents can perform:
-  - All agents in the group weigh each others solutions 
+  - All agents in the group weigh each others solutions (look at the literature) 
   - Having more agents in a group with the same solution increases the confidence in the solution
   - The group makes a decision based on the weighted solutions (? multiple approaches to group decision making)
   
@@ -25,7 +25,7 @@ Updating of properties:
 Experimental setup:
   - Manipulating 
       Confidence
-      Group sizes (dyad, trio, more?)
+      Group sizes (dyad, trio, 5, 10)
       Group composition in relation to proportion of over- and unconfident agents
   - Environment
       Complex problem (?)
@@ -34,20 +34,94 @@ Experimental setup:
       Performance of group (time to find correct solution)
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
 
 library(pacman)
 pacman::p_load(tidyverse)
 
+set.seed(15)
 
 
 
-
-
+# TODO: Investigate literature to define weights in groups decision making
+# TODO: Investigate literature to define confidence values
+# TODO: Define group compositions in terms of different confidence values
+# TODO: Define the problem to solve
 
 
 
 
 ```
+
+
+
+
+
+
+``` {r}
+
+#n_trials <- 100
+
+group_v <- c(2, 3, 5, 10)
+
+
+create_agents <- function(group_size) {
+  
+  n_groups <- 50
+  n_agents <- group_size * n_groups
+  print(n_agents)
+  print(class(n_agents))
+  agents <- as.data.frame(seq(from = 1, to = n_agents))
+  colnames(agents)[1] <- "agent_id"
+  
+  # define group size column
+  if (group_size == 2) {
+    agents$group_size <- 'dyad' 
+    
+  } else if (group_size == 3) {
+    agents$group_size <- 'triad' 
+    
+  } else if (group_size == 5) {
+    agents$group_size <- 'medium'
+    
+  } else if (group_size == 10) {
+    agents$group_size <- 'large'
+  }
+  
+  # define agents groups
+  agents$group <- sort(rep(1:n_groups, group_size))
+  
+  # defining knowledge
+  agents$knowledge <- round(rnorm(length(agents$agent_id), mean=100, sd=15))
+  
+  # define confidence
+  # TODO: Adjust these numbers according to literature to avoid arbitrary numbers
+  conf_v <- c(0.5, 0.75, 1, 1.25, 1.5)
+  
+  # assign confidence
+  agents$conf_value <- NA
+  for (i in 1:length(agents$agent_id)) {
+    agents$conf_value[i] <- sample(conf_v, 1)
+  }
+  agents$confidence <- round(agents$knowledge * agents$conf_value)
+  
+  agents$reputation <- 1
+  
+  return(agents)
+}
+
+
+dyad <- create_agents(2)
+triad <- create_agents(3)
+medium <- create_agents(5)
+large <- create_agents(10)
+
+agent_attr <- rbind(dyad, triad, medium, large)
+
+```
+
+
+
+
 
 
