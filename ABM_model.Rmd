@@ -25,7 +25,7 @@ output: word_document
     - Confirmation: If other agents have the same response, the weight of that response is increased (confirmation bias).
       Weight of agent response is calculated as ...
         ***#TODO: Define this decision function***
-  
+
 ## Updating of properties:
   - *Reputation:* Proportion of correct responses in percent
     Updated at the end of each round
@@ -123,13 +123,6 @@ create_agents <- function(group_size) {
   
   return(agents)
 }
-
-
-
-group_size = 3
-
-# create the agents
-agent_attr <- create_agents(group_size)
 
 
 ```
@@ -248,12 +241,15 @@ run_simulation <- function(data, n_trials, difficulty_mu, difficulty_sd, prob_er
 
 ``` {r Simulation}
 
+# create the agents
+agent_attr <- create_agents(group_size = 3)
+
 # running the simulation
-sim_results <- run_simulation(data = agent_attr,
-                              n_trials = 100,
+sim_results <- run_simulation(data          = agent_attr,
+                              n_trials      = 100,
                               difficulty_mu = 1,
                               difficulty_sd = 0.2,
-                              prob_error = 0.02)
+                              prob_error    = 0.02)
 
 
 ```
