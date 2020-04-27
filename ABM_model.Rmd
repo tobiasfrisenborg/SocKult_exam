@@ -57,6 +57,7 @@ set.seed(15)
 # TODO: Investigate literature to define confidence values
 # TODO: Define group compositions in terms of different confidence values
 # TODO: Define the problem to solve, can it be made more complex so agents can be close or far off from the actual answer?
+# TODO: FIgure out how much confirmation and reputation weighs in decision function
 
 # define function for min-max scaling
 MinMaxScaling <- function(x){
@@ -111,16 +112,6 @@ create_agents <- function(group_size) {
   # TODO: Should this be rounded?
   agents$confidence <- round(agents$knowledge * agents$conf_value)
   
-  # convert confidence to probability
-  agents <- agents %>%
-    group_by(group_id) %>%
-    mutate(conf_sum = sum(confidence))
-  
-  agents$conf_group_prob <- (agents$confidence / agents$conf_sum)
-  
-  # assign all agents the same baseline reputation
-  agents$reputation <- 1
-  
   return(agents)
 }
 
@@ -159,45 +150,81 @@ agent_decision <- function(prob_correct) {
 
 
 # define group_decision function
-group_decision <- function(a1_answer, a2_answer, a3_answer, a1_prob, a2_prob, a3_prob) {
+group_decision <- function(a1_answer, a2_answer, a3_answer, a1_weight, a2_weight, a3_weight) {
   
   # sample answer from groups possible answers
   answer <- sample(c(a1_answer, a2_answer, a3_answer),
-                   prob = c(a1_prob, a2_prob, a3_prob),
+                   prob = c(a1_weight, a2_weight, a3_weight),
                    size = 1)
   
   return(answer)
-  
 }
 
 ```
 
 
 
+
+
+
 ``` {r Simulation Function}
 
 # define function for running simulation
-run_simulation <- function(data, n_trials, difficulty_mu, difficulty_sd, prob_error) {
+run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_sd, prob_error) {
   
   # setup simulation parameters
   difficulty <- rnorm(n_trials, mean = difficulty_mu, sd=difficulty_sd)
   
   # create new dataframe for storing results
-  sim_results <- data[, c(1, 2, 5, 9)]  # TODO: Change this to column names for readability
+  sim_results <- data[, c("agent_id", "group_id", "knowledge_scaled", "confidence")]  # TODO: Change this to column names for readability
+  sim_results$agent_correct_sum  <- 1  # sum of correct answers for individual, used for calculating reputation
+  sim_results$group_correct_sum  <- 0  # sum of correct answers for group
   
+  # create vectors for calculating proportion of correct responses
   diff_vec <- c()
   mean_vec <- c()
+  
   # running the trials
   for (trial in 1:n_trials) {
     
     # setup colnames depending on trial
-    col_difficulty   <- paste('difficulty_t',   trial, sep = '')
-    col_prob_correct <- paste('prob_correct_t', trial, sep = '')
-    col_agent_answer <- paste('agent_answer_t', trial, sep = '')
-    col_group_answer <- paste('group_answer_t', trial, sep = '')
+    col_difficulty       <- paste('difficulty_t',       trial, sep = '')
+    col_prob_correct     <- paste('prob_correct_t',     trial, sep = '')
+    col_agent_answer     <- paste('agent_answer_t',     trial, sep = '')
+    col_agent_reputation <- paste('agent_reputation_t', trial, sep = '')
+    col_group_answer     <- paste('group_answer_t',     trial, sep = '')
+    
     
     # save difficulty
     sim_results[[col_difficulty]] <- difficulty[trial]
+    
+    # calculate each agents reputation
+    sim_results[[col_agent_reputation]] <- sim_results$agent_correct_sum / trial
+    
+    # calculate weight of each agents answer, based on condition
+    # baseline: only confidence contributes to weight
+    if (condition == 'baseline') {
+        sim_results <- sim_results %>%
+          group_by(group_id) %>%
+          mutate(weight_sum = sum(confidence))
+      
+      sim_results$answer_weight <- sim_results$confidence / sim_results$weight_sum
+    
+    # reputation: confidence and reputation decides weight
+    } else if (condition == 'reputation') {
+      sim_results <- sim_results %>%
+        group_by(group_id) %>%
+        mutate(weight_sum = sum(confidence * get(col_agent_reputation)))  # weight of confidence and reputation on group level
+      
+      sim_results$answer_weight <- (sim_results$confidence * sim_results[[col_agent_reputation]]) / sim_results$weight_sum  # individual agent weight
+    
+    } else if (condition == 'confirmation') {
+      print('hmm')
+      
+    } else {
+      print("Invalid condition!")
+    }
+    
     
     # calculate agent probability of getting a correct response and the actual response
     sim_results[[col_prob_correct]] <- lapply(sim_results$knowledge_scaled * sim_results[[col_difficulty]],
@@ -217,9 +244,13 @@ run_simulation <- function(data, n_trials, difficulty_mu, difficulty_sd, prob_er
       mutate(!!col_group_answer := group_decision(a1_answer = get(col_agent_answer)[1],
                                                   a2_answer = get(col_agent_answer)[2],
                                                   a3_answer = get(col_agent_answer)[3],
-                                                  a1_prob   = conf_group_prob[1],
-                                                  a2_prob   = conf_group_prob[2],
-                                                  a3_prob   = conf_group_prob[3]))
+                                                  a1_weight = answer_weight[1],
+                                                  a2_weight = answer_weight[2],
+                                                  a3_weight = answer_weight[3] ))
+    
+    # calculate sum of correct responses
+    sim_results$agent_correct_sum <- sim_results$agent_correct_sum + sim_results[[col_agent_answer]]
+    sim_results$group_correct_sum <- sim_results$group_correct_sum + sim_results[[col_group_answer]]
     
     # saving of mean scores to print
     diff_vec <- append(diff_vec, difficulty[trial])
@@ -239,6 +270,8 @@ run_simulation <- function(data, n_trials, difficulty_mu, difficulty_sd, prob_er
 
 
 
+
+
 ``` {r Simulation}
 
 # create the agents
@@ -246,7 +279,8 @@ agent_attr <- create_agents(group_size = 3)
 
 # running the simulation
 sim_results <- run_simulation(data          = agent_attr,
-                              n_trials      = 100,
+                              condition     = 'baseline',
+                              n_trials      = 200,
                               difficulty_mu = 1,
                               difficulty_sd = 0.2,
                               prob_error    = 0.02)
