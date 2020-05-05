@@ -93,24 +93,29 @@ create_agents <- function(group_size) {
   
   # TODO: Make sure this is a fair way of doing it (as min prob is approx 25% and max prob is approx 75%)
   #agents$knowledge_prob <- agents$knowledge / 200
-  agents$knowledge_scaled <- MinMaxScaling(agents$knowledge)
-  #agents$knowledge_scaled <- scale(agents$knowledge)
+  agents$knowledge_scaled   <- MinMaxScaling(agents$knowledge)
+  agents$knowledge_z_score <- scale(agents$knowledge)
   
-  # define confidence
-  # TODO: Adjust these numbers according to literature to avoid arbitrary numbers
-  #       It could take confidence bias into consideration, so that agents with
-  #       higher knowledge are less confident and agents with less knowledge
-  #       are more confident
-  conf_vec <- c(0.5, 0.75, 1, 1.25, 1.5)
+  # creating the two distributions for over- and underconfidence levels
+  above_average <- rnorm(length(agents$agent_id), mean=(-0.2), sd=0.2)
+  below_average <- rnorm(length(agents$agent_id), mean=  0.4 , sd=0.4)
   
-  # assign confidence randomly for each participant
-  agents$conf_value <- NA
-  
+  # loop through all agents, calculating confidence depending on proximity to the mean knowledge
   for (i in 1:length(agents$agent_id)) {
-    agents$conf_value[i] <- sample(conf_vec, 1) }
+    
+    # if knowledge is above average, sample from the underconfidence distribution
+    if (agents$knowledge[i] >= 100) {
+      agents$confidence_level[i] <- sample(above_average, 1)
+      agents$confidence_value[i] <- 1 + (agents$confidence_level[i] * (abs(agents$knowledge_z_score[i]) * 0.7))
+      agents$confidence[i] <- agents$knowledge[i] * agents$confidence_value[i]
+      
+    } else if (agents$knowledge[i] < 100) {
+      agents$confidence_level[i] <- sample(below_average, 1)
+      agents$confidence_value[i] <- 1 + (agents$confidence_level[i] * (abs(agents$knowledge_z_score[i]) * 0.7))
+      agents$confidence[i] <- agents$knowledge[i] * agents$confidence_value[i]
+    }
+  }
   
-  # TODO: Should this be rounded?
-  agents$confidence <- round(agents$knowledge * agents$conf_value)
   
   return(agents)
 }
@@ -201,6 +206,19 @@ run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_
     # calculate each agents reputation
     sim_results[[col_agent_reputation]] <- sim_results$agent_correct_sum / trial
     
+    # calculate agent probability of getting a correct response and the actual response
+    sim_results[[col_prob_correct]] <- lapply(sim_results$knowledge_scaled * sim_results[[col_difficulty]],
+                                              FUN = agent_prob_adjust,
+                                              prob_error = prob_error)
+    
+    sim_results[[col_agent_answer]] <- lapply(sim_results[[col_prob_correct]],
+                                              FUN = agent_decision)
+    
+    # convert to proper data types
+    sim_results[[col_prob_correct]] <- as.numeric(sim_results[[col_prob_correct]])
+    sim_results[[col_agent_answer]] <- as.integer(sim_results[[col_agent_answer]])
+    
+    
     # calculate weight of each agents answer, based on condition
     # baseline: only confidence contributes to weight
     if (condition == 'baseline') {
@@ -219,24 +237,34 @@ run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_
       sim_results$answer_weight <- (sim_results$confidence * sim_results[[col_agent_reputation]]) / sim_results$weight_sum  # individual agent weight
     
     } else if (condition == 'confirmation') {
-      print('hmm')
+      sim_results <- sim_results %>%
+        group_by(group_id) %>%
+        mutate(answer_sum = sum(get(col_agent_answer)))  # weight of confidence and reputation on group level
       
+      # if answer sum is = 0 or 3 then all agents answered the same and there is no need to adjust the weight
+      # if sum of answers for group = 1, then two agents answered 0
+      sim_results <- sim_results %>% 
+        filter(answer_sum == 1 & get(col_agent_answer) == 0) %>%
+        get(col_agent_reputation) * 2
+      
+      #select(sim_results, answer_sum = 1, get(col_agent_answer) = 0)
+      
+      # if sum of answers for group = 2, then two agents answered 1
+      sim_results <- sim_results %>% 
+        filter(answer_sum == 2 & get(col_agent_answer) == 1) %>%
+        get(col_agent_reputation) * 2
+      
+      
+      
+      sim_results <- sim_results %>%
+        group_by(group_id) %>%
+        mutate(weight_sum = sum(confidence * get(col_agent_reputation)))  # weight of confidence and reputation on group level
+      
+      sim_results$answer_weight <- (sim_results$confidence * sim_results[[col_agent_reputation]]) / sim_results$weight_sum  # individual agent weight
+
     } else {
       print("Invalid condition!")
     }
-    
-    
-    # calculate agent probability of getting a correct response and the actual response
-    sim_results[[col_prob_correct]] <- lapply(sim_results$knowledge_scaled * sim_results[[col_difficulty]],
-                                              FUN = agent_prob_adjust,
-                                              prob_error = prob_error)
-    
-    sim_results[[col_agent_answer]] <- lapply(sim_results[[col_prob_correct]],
-                                              FUN = agent_decision)
-    
-    # convert to proper data types
-    sim_results[[col_prob_correct]] <- as.numeric(sim_results[[col_prob_correct]])
-    sim_results[[col_agent_answer]] <- as.integer(sim_results[[col_agent_answer]])
     
     # select group decision
     sim_results <- sim_results %>% 
@@ -279,7 +307,7 @@ agent_attr <- create_agents(group_size = 3)
 
 # running the simulation
 sim_results <- run_simulation(data          = agent_attr,
-                              condition     = 'baseline',
+                              condition     = 'confirmation',
                               n_trials      = 200,
                               difficulty_mu = 1,
                               difficulty_sd = 0.2,
