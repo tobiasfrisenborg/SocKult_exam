@@ -51,7 +51,7 @@ Experimental setup:
 library(pacman)
 pacman::p_load(tidyverse, tictoc)
 
-seed = 15
+seed = 16
 set.seed(seed)
 
 
@@ -76,51 +76,49 @@ source('functions/run_simulation.R')
 ``` {r Simulation}
 
 ### CREATING AGENTS ###
-agent_attr <- create_agents(group_size = 3)
+agent_attr <- create_agents(group_size = 3, seed = seed)
+
 
 
 ### RUNNING THE SIMULATION ###
 # baseline condition
 sim_baseline     <- run_simulation(data          = agent_attr,
                                    condition     = 'baseline',
-                                   n_trials      = 200,
+                                   n_trials      = 75,
                                    difficulty_mu = 1,
                                    difficulty_sd = 0.2,
-                                   prob_error    = 0.02)
+                                   prob_error    = 0.02,
+                                   seed          = seed)
 
-# running the simulation
+# reputation condition
 sim_reputation   <- run_simulation(data          = agent_attr,
                                    condition     = 'reputation',
-                                   n_trials      = 200,
+                                   n_trials      = 75,
                                    difficulty_mu = 1,
                                    difficulty_sd = 0.2,
-                                   prob_error    = 0.02)
+                                   prob_error    = 0.02,
+                                   seed          = seed)
 
-# running the simulation
+# confirmation condition
 sim_confirmation <- run_simulation(data          = agent_attr,
                                    condition     = 'confirmation',
-                                   n_trials      = 200,
+                                   n_trials      = 75,
                                    difficulty_mu = 1,
                                    difficulty_sd = 0.2,
-                                   prob_error    = 0.02)
+                                   prob_error    = 0.02,
+                                   seed          = seed)
 
 
 ```
 
 
 
-
-
-
-``` {r Test}
- group_results <- sim_baseline %>%
-    group_by(group_id) %>%
-    mutate(correct_sum = sum(group_answer))
-  
-  message(paste('AVG Correct:    ', mean(group_results$correct_sum)))
-
-
-```
-
-
-
+Simulation: 7.13 sec elapsed
+AVG Difficulty:  1.02034584754159
+AVG Correct:     39.6
+Simulation: 6.41 sec elapsed
+AVG Difficulty:  1.02034584754159
+AVG Correct:     50
+Simulation: 7.53 sec elapsed
+AVG Difficulty:  1.02034584754159
+AVG Correct:     47.6

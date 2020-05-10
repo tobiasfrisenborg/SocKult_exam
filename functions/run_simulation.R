@@ -1,11 +1,13 @@
 library(tictoc)
 
 # define function for running simulation
-run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_sd, prob_error) {
+run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_sd, prob_error, seed) {
+  
+  tic("Simulation") # timekeeping
   
   ### SIMULATION PARAMETERS ###
-  tic("Simulation")
-  difficulty <- rnorm(n_trials, mean = difficulty_mu, sd=difficulty_sd)
+  set.seed(seed)
+  difficulty          <- rnorm(n_trials, mean = difficulty_mu, sd=difficulty_sd)
   confirmation_weight <- 2
   
   
@@ -67,7 +69,8 @@ run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_
       # save conditional rows for agent in loop
       condition_agent <- (sim_results$agent_id == agent)
       
-      sim_results$agent_answer[condition_trial & condition_agent] <- agent_decision(sim_results$prob_correct[condition_trial & condition_agent])
+      sim_results$agent_answer[condition_trial & condition_agent] <- agent_decision(sim_results$prob_correct[condition_trial & condition_agent],
+                                                                                    seed = (seed + agent))
     }
     
     
@@ -122,7 +125,8 @@ run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_
                                          a3_answer = agent_answer[3],
                                          a1_weight = answer_weight[1],
                                          a2_weight = answer_weight[2],
-                                         a3_weight = answer_weight[3] ))
+                                         a3_weight = answer_weight[3],
+                                         seed      = seed))
   
   
   

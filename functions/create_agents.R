@@ -1,5 +1,5 @@
 # define function for creating agents
-create_agents <- function(group_size) {
+create_agents <- function(group_size, seed) {
   
   # setup number parameters for calculations
   n_groups              <- 50
@@ -14,6 +14,7 @@ create_agents <- function(group_size) {
   agents$group_size <- group_size  # define group size column
   
   # defining knowledge distribution
+  set.seed(seed)
   agents$knowledge <- round(rnorm(length(agents$agent_id), mean=100, sd=15))
   
   # scale knowledge for use in future calculations
@@ -21,7 +22,9 @@ create_agents <- function(group_size) {
   agents$knowledge_z_score <- scale(agents$knowledge)
   
   # creating the two distributions for over- and underconfidence levels
+  set.seed(seed)
   above_average <- rnorm(length(agents$agent_id), mean=(-0.2), sd=0.2)
+  set.seed(seed)
   below_average <- rnorm(length(agents$agent_id), mean=  0.4 , sd=0.4)
   
   # loop through all agents, calculating confidence depending on proximity to the mean knowledge
@@ -29,11 +32,13 @@ create_agents <- function(group_size) {
   for (i in 1:length(agents$agent_id)) {
     
     if (agents$knowledge[i] >= 100) {
+      set.seed(seed + i)
       agents$confidence_value[i] <- sample(above_average, 1)
       agents$confidence_level[i] <- 1 + (agents$confidence_value[i] * (abs(agents$knowledge_z_score[i]) * conf_influence_factor))
       agents$confidence[i]       <- agents$knowledge[i] * agents$confidence_level[i] }
     
     else if (agents$knowledge[i] < 100) {
+      set.seed(seed + i)
       agents$confidence_value[i] <- sample(below_average, 1)[1]
       agents$confidence_level[i] <- 1 + (agents$confidence_value[i] * (abs(agents$knowledge_z_score[i]) * conf_influence_factor))
       agents$confidence[i]       <- agents$knowledge[i] * agents$confidence_level[i] }
