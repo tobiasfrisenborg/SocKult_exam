@@ -7,9 +7,9 @@ output: word_document
 
 #  ABM Specifications and Parameters
 ## Properties of Agents
-  - *Knowledge:* (Normal distribution, mu=100, sd=15)
+  - *Knowledge:* Normal distribution with mu=100 and sd=15 (like IQ)
     **https://www.mensa.org/iq/what-iq**
-  - *Confidence Level:* (Percentage score e.g. 1.3 (overconfident) or 0.7 (unconfident))
+  - *Confidence Level:* Factor for confidence calculation, that reflects the mismatch between believed knowledge and true knowledge.
       Scores on a scale (Very unconfident, slightly unconfident, neutral, slightly overconfident, very overconfident)
         ***#TODO: Read literature to find confidence scale - does it scale with/depend on skill?***
   - *Confidence:* (knowledge * confidence)
@@ -27,10 +27,8 @@ output: word_document
         ***#TODO: Define this decision function***
 
 ## Updating of properties:
-  - *Reputation:* Proportion of correct responses in percent
-    Updated at the end of each round
-  - **Self confidence is updated at each round as a function of correct answers (maybe include error)**
-      ***#TODO: Do we need this?***
+  - *Reputation:* Proportion of correct responses in decimal percent
+    (Updated at the end of each round)
 
 Experimental setup:
   - *Manipulated Variables*
@@ -41,277 +39,70 @@ Experimental setup:
     - Influence of reputation and confirmation bias in multiple models, versus one baseline model (equality bias)
   - *Outcome:*
     - Performance of group (mean payoff over trials)
-    - Performance of group (time to find correct solution)**
-        ***#TODO: Do we need this?***
+    - Performance of group (time to find correct solution)
+
+
 
 ```{r Setup, include=FALSE}
 
-library(pacman)
-pacman::p_load(tidyverse)
-
-set.seed(15)
-
-
-
-# TODO: Investigate literature to define weights in groups decision making
-# TODO: Investigate literature to define confidence values
 # TODO: Define group compositions in terms of different confidence values
-# TODO: Define the problem to solve, can it be made more complex so agents can be close or far off from the actual answer?
 # TODO: FIgure out how much confirmation and reputation weighs in decision function
 
-# define function for min-max scaling
-MinMaxScaling <- function(x){
-  return((x-min(x)) / (max(x)-  min(x)))
-}
+library(pacman)
+pacman::p_load(tidyverse, tictoc)
+
+seed = 15
+set.seed(seed)
+
+
+
+
+
+
+
+# read functions
+source('functions/min_max_scale.R')
+source('functions/create_agents.R')
+source('functions/agent_prob_adjust.R')
+source('functions/agent_decision.R')
+source('functions/group_decision.R')
+source('functions/run_simulation.R')
 
 
 ```
-
-
-
-``` {r Setup Agent Attributes}
-
-# define function for creating agents
-create_agents <- function(group_size) {
-  
-  # setup number of groups and agents
-  n_groups <- 50
-  n_agents <- group_size * n_groups
-  
-  # create dataframe
-  agents <- as.data.frame(seq(from = 1, to = n_agents))
-  colnames(agents)[1] <- "agent_id"
-  
-  # define agents groups
-  agents$group_id <- sort(rep(1:n_groups, group_size))
-  
-  # define group size column
-  agents$group_size <- group_size
-  
-  # defining knowledge and calculate probabiltiy from it
-  agents$knowledge <- round(rnorm(length(agents$agent_id), mean=100, sd=15))
-  
-  # TODO: Make sure this is a fair way of doing it (as min prob is approx 25% and max prob is approx 75%)
-  #agents$knowledge_prob <- agents$knowledge / 200
-  agents$knowledge_scaled   <- MinMaxScaling(agents$knowledge)
-  agents$knowledge_z_score <- scale(agents$knowledge)
-  
-  # creating the two distributions for over- and underconfidence levels
-  above_average <- rnorm(length(agents$agent_id), mean=(-0.2), sd=0.2)
-  below_average <- rnorm(length(agents$agent_id), mean=  0.4 , sd=0.4)
-  
-  # loop through all agents, calculating confidence depending on proximity to the mean knowledge
-  for (i in 1:length(agents$agent_id)) {
-    
-    # if knowledge is above average, sample from the underconfidence distribution
-    if (agents$knowledge[i] >= 100) {
-      agents$confidence_level[i] <- sample(above_average, 1)
-      agents$confidence_value[i] <- 1 + (agents$confidence_level[i] * (abs(agents$knowledge_z_score[i]) * 0.7))
-      agents$confidence[i] <- agents$knowledge[i] * agents$confidence_value[i]
-      
-    } else if (agents$knowledge[i] < 100) {
-      agents$confidence_level[i] <- sample(below_average, 1)
-      agents$confidence_value[i] <- 1 + (agents$confidence_level[i] * (abs(agents$knowledge_z_score[i]) * 0.7))
-      agents$confidence[i] <- agents$knowledge[i] * agents$confidence_value[i]
-    }
-  }
-  
-  
-  return(agents)
-}
-
-
-```
-
-
-
-``` {r Decision Functions}
-
-# define function for calculating that probability is correct
-agent_prob_adjust <- function(prob_agent, prob_error) {
-  
-  # adjust probability floor and ceiling
-  prob_agent <- case_when(prob_agent >= 1 ~ 1,
-                          prob_agent <= 0 ~ 0,
-                          TRUE ~ prob_agent)
-  
-  # add error to probability
-  prob_agent <- ifelse(prob_agent > 0.5, prob_agent - prob_error, prob_agent + prob_error)
-  
-  return(prob_agent)
-}
-
-
-
-# define function for sampling answers
-agent_decision <- function(prob_correct) {
-  
-  # sample answer according to probability of correct answer
-  answer <- sample(c(0, 1), 1, prob = c((1 - prob_correct), prob_correct))
-  
-  return(answer)
-}
-
-
-
-# define group_decision function
-group_decision <- function(a1_answer, a2_answer, a3_answer, a1_weight, a2_weight, a3_weight) {
-  
-  # sample answer from groups possible answers
-  answer <- sample(c(a1_answer, a2_answer, a3_answer),
-                   prob = c(a1_weight, a2_weight, a3_weight),
-                   size = 1)
-  
-  return(answer)
-}
-
-```
-
-
-
-
-
-
-``` {r Simulation Function}
-
-# define function for running simulation
-run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_sd, prob_error) {
-  
-  # setup simulation parameters
-  difficulty <- rnorm(n_trials, mean = difficulty_mu, sd=difficulty_sd)
-  
-  # create new dataframe for storing results
-  sim_results <- data[, c("agent_id", "group_id", "knowledge_scaled", "confidence")]  # TODO: Change this to column names for readability
-  sim_results$agent_correct_sum  <- 1  # sum of correct answers for individual, used for calculating reputation
-  sim_results$group_correct_sum  <- 0  # sum of correct answers for group
-  
-  # create vectors for calculating proportion of correct responses
-  diff_vec <- c()
-  mean_vec <- c()
-  
-  # running the trials
-  for (trial in 1:n_trials) {
-    
-    # setup colnames depending on trial
-    col_difficulty       <- paste('difficulty_t',       trial, sep = '')
-    col_prob_correct     <- paste('prob_correct_t',     trial, sep = '')
-    col_agent_answer     <- paste('agent_answer_t',     trial, sep = '')
-    col_agent_reputation <- paste('agent_reputation_t', trial, sep = '')
-    col_group_answer     <- paste('group_answer_t',     trial, sep = '')
-    
-    
-    # save difficulty
-    sim_results[[col_difficulty]] <- difficulty[trial]
-    
-    # calculate each agents reputation
-    sim_results[[col_agent_reputation]] <- sim_results$agent_correct_sum / trial
-    
-    # calculate agent probability of getting a correct response and the actual response
-    sim_results[[col_prob_correct]] <- lapply(sim_results$knowledge_scaled * sim_results[[col_difficulty]],
-                                              FUN = agent_prob_adjust,
-                                              prob_error = prob_error)
-    
-    sim_results[[col_agent_answer]] <- lapply(sim_results[[col_prob_correct]],
-                                              FUN = agent_decision)
-    
-    # convert to proper data types
-    sim_results[[col_prob_correct]] <- as.numeric(sim_results[[col_prob_correct]])
-    sim_results[[col_agent_answer]] <- as.integer(sim_results[[col_agent_answer]])
-    
-    
-    # calculate weight of each agents answer, based on condition
-    # baseline: only confidence contributes to weight
-    if (condition == 'baseline') {
-        sim_results <- sim_results %>%
-          group_by(group_id) %>%
-          mutate(weight_sum = sum(confidence))
-      
-      sim_results$answer_weight <- sim_results$confidence / sim_results$weight_sum
-    
-    # reputation: confidence and reputation decides weight
-    } else if (condition == 'reputation') {
-      sim_results <- sim_results %>%
-        group_by(group_id) %>%
-        mutate(weight_sum = sum(confidence * get(col_agent_reputation)))  # weight of confidence and reputation on group level
-      
-      sim_results$answer_weight <- (sim_results$confidence * sim_results[[col_agent_reputation]]) / sim_results$weight_sum  # individual agent weight
-    
-    } else if (condition == 'confirmation') {
-      sim_results <- sim_results %>%
-        group_by(group_id) %>%
-        mutate(answer_sum = sum(get(col_agent_answer)))  # weight of confidence and reputation on group level
-      
-      # if answer sum is = 0 or 3 then all agents answered the same and there is no need to adjust the weight
-      # if sum of answers for group = 1, then two agents answered 0
-      sim_results <- sim_results %>% 
-        filter(answer_sum == 1 & get(col_agent_answer) == 0) %>%
-        get(col_agent_reputation) * 2
-      
-      #select(sim_results, answer_sum = 1, get(col_agent_answer) = 0)
-      
-      # if sum of answers for group = 2, then two agents answered 1
-      sim_results <- sim_results %>% 
-        filter(answer_sum == 2 & get(col_agent_answer) == 1) %>%
-        get(col_agent_reputation) * 2
-      
-      
-      
-      sim_results <- sim_results %>%
-        group_by(group_id) %>%
-        mutate(weight_sum = sum(confidence * get(col_agent_reputation)))  # weight of confidence and reputation on group level
-      
-      sim_results$answer_weight <- (sim_results$confidence * sim_results[[col_agent_reputation]]) / sim_results$weight_sum  # individual agent weight
-
-    } else {
-      print("Invalid condition!")
-    }
-    
-    # select group decision
-    sim_results <- sim_results %>% 
-      group_by(group_id) %>% 
-      mutate(!!col_group_answer := group_decision(a1_answer = get(col_agent_answer)[1],
-                                                  a2_answer = get(col_agent_answer)[2],
-                                                  a3_answer = get(col_agent_answer)[3],
-                                                  a1_weight = answer_weight[1],
-                                                  a2_weight = answer_weight[2],
-                                                  a3_weight = answer_weight[3] ))
-    
-    # calculate sum of correct responses
-    sim_results$agent_correct_sum <- sim_results$agent_correct_sum + sim_results[[col_agent_answer]]
-    sim_results$group_correct_sum <- sim_results$group_correct_sum + sim_results[[col_group_answer]]
-    
-    # saving of mean scores to print
-    diff_vec <- append(diff_vec, difficulty[trial])
-    mean_vec <- append(mean_vec, mean(sim_results[[col_group_answer]]))
-    
-  }
-  
-  # print the stats
-  message(paste('AVG Difficulty: ', mean(diff_vec)))
-  message(paste('AVG Correct:    ', mean(mean_vec)))
-  
-  return(sim_results)
-}
-
-
-```
-
-
 
 
 
 ``` {r Simulation}
 
-# create the agents
+### CREATING AGENTS ###
 agent_attr <- create_agents(group_size = 3)
 
+
+### RUNNING THE SIMULATION ###
+# baseline condition
+sim_baseline     <- run_simulation(data          = agent_attr,
+                                   condition     = 'baseline',
+                                   n_trials      = 200,
+                                   difficulty_mu = 1,
+                                   difficulty_sd = 0.2,
+                                   prob_error    = 0.02)
+
 # running the simulation
-sim_results <- run_simulation(data          = agent_attr,
-                              condition     = 'confirmation',
-                              n_trials      = 200,
-                              difficulty_mu = 1,
-                              difficulty_sd = 0.2,
-                              prob_error    = 0.02)
+sim_reputation   <- run_simulation(data          = agent_attr,
+                                   condition     = 'reputation',
+                                   n_trials      = 200,
+                                   difficulty_mu = 1,
+                                   difficulty_sd = 0.2,
+                                   prob_error    = 0.02)
+
+# running the simulation
+sim_confirmation <- run_simulation(data          = agent_attr,
+                                   condition     = 'confirmation',
+                                   n_trials      = 200,
+                                   difficulty_mu = 1,
+                                   difficulty_sd = 0.2,
+                                   prob_error    = 0.02)
 
 
 ```
@@ -321,11 +112,15 @@ sim_results <- run_simulation(data          = agent_attr,
 
 
 
+``` {r Test}
+ group_results <- sim_baseline %>%
+    group_by(group_id) %>%
+    mutate(correct_sum = sum(group_answer))
+  
+  message(paste('AVG Correct:    ', mean(group_results$correct_sum)))
 
 
-
-
-
+```
 
 
 
