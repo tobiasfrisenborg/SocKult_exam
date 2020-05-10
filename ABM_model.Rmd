@@ -51,7 +51,7 @@ Experimental setup:
 library(pacman)
 pacman::p_load(tidyverse, tictoc)
 
-seed = 16
+seed = 15
 set.seed(seed)
 
 
@@ -67,6 +67,7 @@ source('functions/agent_prob_adjust.R')
 source('functions/agent_decision.R')
 source('functions/group_decision.R')
 source('functions/run_simulation.R')
+source('functions/plot_results.R')
 
 
 ```
@@ -75,50 +76,134 @@ source('functions/run_simulation.R')
 
 ``` {r Simulation}
 
+### SETUP PARAMETERS ###
+# agents
+n_groups              <- 30
+group_size            <- 3
+conf_influence_factor <- 0.7
+
+# simulations
+n_trials              <- 100
+difficulty_mu         <- 1
+difficulty_sd         <- 0.2
+prob_error            <- 0.02
+confirmation_weight   <- 2
+
+
+
 ### CREATING AGENTS ###
-agent_attr <- create_agents(group_size = 3, seed = seed)
+agent_attr       <- create_agents(n_groups              = n_groups,
+                                  group_size            = group_size,
+                                  conf_influence_factor = conf_influence_factor,
+                                  seed                  = seed)
 
 
 
 ### RUNNING THE SIMULATION ###
 # baseline condition
-sim_baseline     <- run_simulation(data          = agent_attr,
-                                   condition     = 'baseline',
-                                   n_trials      = 75,
-                                   difficulty_mu = 1,
-                                   difficulty_sd = 0.2,
-                                   prob_error    = 0.02,
-                                   seed          = seed)
+sim_baseline     <- run_simulation(data                 = agent_attr,
+                                   condition            = 'baseline',
+                                   n_trials             = n_trials,
+                                   difficulty_mu        = difficulty_mu,
+                                   difficulty_sd        = difficulty_sd,
+                                   prob_error           = prob_error,
+                                   seed                 = seed)
 
 # reputation condition
-sim_reputation   <- run_simulation(data          = agent_attr,
-                                   condition     = 'reputation',
-                                   n_trials      = 75,
-                                   difficulty_mu = 1,
-                                   difficulty_sd = 0.2,
-                                   prob_error    = 0.02,
-                                   seed          = seed)
+sim_reputation   <- run_simulation(data                 = agent_attr,
+                                   condition            = 'reputation',
+                                   n_trials             = n_trials,
+                                   difficulty_mu        = difficulty_mu,
+                                   difficulty_sd        = difficulty_sd,
+                                   prob_error           = prob_error,
+                                   seed                 = seed)
 
 # confirmation condition
-sim_confirmation <- run_simulation(data          = agent_attr,
-                                   condition     = 'confirmation',
-                                   n_trials      = 75,
-                                   difficulty_mu = 1,
-                                   difficulty_sd = 0.2,
-                                   prob_error    = 0.02,
-                                   seed          = seed)
+sim_confirmation <- run_simulation(data                 = agent_attr,
+                                   condition            = 'confirmation',
+                                   confirmation_weight  = confirmation_weight,
+                                   n_trials             = n_trials,
+                                   difficulty_mu        = difficulty_mu,
+                                   difficulty_sd        = difficulty_sd,
+                                   prob_error           = prob_error,
+                                   seed                 = seed)
+
+
+
+### PRINT SOME QUICK PLOTS ###
+plot_results(sim_baseline, sim_reputation, sim_confirmation)
+
+```
+
+
+``` {r Plots}
+
+baseline_summary <- sim_baseline %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer))
+baseline_summary[,"cum_performance"] <- cumsum(baseline_summary$performance)
+
+reputation_summary <- sim_reputation %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer))
+reputation_summary[,"cum_performance"] <- cumsum(reputation_summary$performance)
+
+confirmation_summary <- sim_confirmation %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer))
+confirmation_summary[,"cum_performance"] <- cumsum(confirmation_summary$performance)
+
+baseline_summary$condition <- "baseline"
+reputation_summary$condition <- "reputation"
+confirmation_summary$condition <- "confirmation"
+
+summary <- rbind(baseline_summary, reputation_summary, confirmation_summary)
+
+
+
+ggplot(summary, aes(x = trial_n, y = cum_performance, color = condition)) +
+  geom_smooth()
+
+ggplot(summary, aes(x = trial_n, y = performance, color = condition)) +
+  geom_smooth()
 
 
 ```
 
 
+``` {r Plots}
 
-Simulation: 7.13 sec elapsed
-AVG Difficulty:  1.02034584754159
-AVG Correct:     39.6
-Simulation: 6.41 sec elapsed
-AVG Difficulty:  1.02034584754159
-AVG Correct:     50
-Simulation: 7.53 sec elapsed
-AVG Difficulty:  1.02034584754159
-AVG Correct:     47.6
+baseline_summary <- sim_baseline %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer), difficulty = mean(difficulty))
+baseline_summary[,"cum_performance"] <- cumsum(baseline_summary$performance)
+
+reputation_summary <- sim_reputation %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer), difficulty = mean(difficulty))
+reputation_summary[,"cum_performance"] <- cumsum(reputation_summary$performance)
+
+confirmation_summary <- sim_confirmation %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer), difficulty = mean(difficulty))
+confirmation_summary[,"cum_performance"] <- cumsum(confirmation_summary$performance)
+
+
+baseline_summary$condition <- "baseline"
+reputation_summary$condition <- "reputation"
+confirmation_summary$condition <- "confirmation"
+
+summary <- rbind(baseline_summary, reputation_summary, confirmation_summary)
+
+
+
+ggplot(summary, aes(x = difficulty, y = cum_performance, color = condition)) +
+  geom_smooth()
+
+ggplot(summary, aes(x = difficulty, y = performance, color = condition)) +
+  geom_smooth()
+
+
+```
+
+

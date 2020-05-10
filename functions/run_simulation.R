@@ -1,7 +1,7 @@
 library(tictoc)
 
 # define function for running simulation
-run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_sd, prob_error, seed) {
+run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_sd, prob_error, seed, confirmation_weight = NA) {
   
   tic("Simulation") # timekeeping
   
@@ -70,7 +70,7 @@ run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_
       condition_agent <- (sim_results$agent_id == agent)
       
       sim_results$agent_answer[condition_trial & condition_agent] <- agent_decision(sim_results$prob_correct[condition_trial & condition_agent],
-                                                                                    seed = (seed + agent))
+                                                                                    seed = (seed + (agent * trial)) )
     }
     
     
@@ -87,15 +87,14 @@ run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_
       # condition to select if two agents in group answered 1
       condition_1_agree <- ((sim_results$group_answer_sum == 2) & (sim_results$agent_answer == 0))
       
-      # 
+      # if two agents have the same answer, their reputation is multiplied with the confirmation bias weight
       sim_results$agent_reputation[condition_trial & (condition_0_agree | condition_1_agree)] <- 
         sim_results$agent_reputation[condition_trial & (condition_0_agree | condition_1_agree)] * confirmation_weight
     }
     
   }
   
-  ######################################## TODO : // Should the agent correct be updated no matter the group response or should it only count if group answers correctly?
-  
+
   ### RUNNING THE SIMULATION ###
   # baseline: only confidence contributes to weight
   if (condition == 'baseline') {
@@ -107,13 +106,14 @@ run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_
     
     # calculate the individual agents answer weight
     sim_results$answer_weight <- sim_results$confidence / sim_results$confidence_sum
+    print(min(sim_results$confidence))
     
   } else if (condition == 'reputation' | condition == 'confirmation') {
     
     sim_results <- sim_results %>%
       group_by(group_id, trial_n) %>%
       mutate(weight_sum = sum(confidence * agent_reputation))  # weight of confidence and reputation on group level
-    
+      
     sim_results$answer_weight <- (sim_results$confidence * sim_results$agent_reputation) / sim_results$weight_sum  # individual agent weight
   }
   
@@ -126,7 +126,7 @@ run_simulation <- function(data, condition, n_trials, difficulty_mu, difficulty_
                                          a1_weight = answer_weight[1],
                                          a2_weight = answer_weight[2],
                                          a3_weight = answer_weight[3],
-                                         seed      = seed))
+                                         seed      = (seed + trial_n[1])))
   
   
   
