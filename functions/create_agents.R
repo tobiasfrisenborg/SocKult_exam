@@ -47,7 +47,6 @@ create_agents <- function(n_groups, group_size, conf_influence_factor, seed) {
         agents$confidence_level[i] <- 0.001 }
       agents$confidence[i]       <- agents$knowledge[i] * agents$confidence_level[i] }
     
-    
   }
   
   
