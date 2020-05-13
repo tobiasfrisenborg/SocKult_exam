@@ -10,8 +10,6 @@ output: word_document
   - *Knowledge:* Normal distribution with mu=100 and sd=15 (like IQ)
     **https://www.mensa.org/iq/what-iq**
   - *Confidence Level:* Factor for confidence calculation, that reflects the mismatch between believed knowledge and true knowledge.
-      Scores on a scale (Very unconfident, slightly unconfident, neutral, slightly overconfident, very overconfident)
-        ***#TODO: Read literature to find confidence scale - does it scale with/depend on skill?***
   - *Confidence:* (knowledge * confidence)
   - *Reputation:* Proportion of correct responses out of total responses
 
@@ -21,10 +19,10 @@ output: word_document
       Weight of agent response is calculated as **confidence / sum(confidence)**
     - Reputation: All agents can assign weights to their group members answers, based on reputation, to mitigate the equality bias.
       Weight of agent response is calculated as ...
-        ***#TODO: Define this decision function***
+        
     - Confirmation: If other agents have the same response, the weight of that response is increased (confirmation bias).
       Weight of agent response is calculated as ...
-        ***#TODO: Define this decision function***
+        
 
 ## Updating of properties:
   - *Reputation:* Proportion of correct responses in decimal percent
@@ -45,20 +43,15 @@ Experimental setup:
 
 ```{r Setup, include=FALSE}
 
-# TODO: Define group compositions in terms of different confidence values
 # TODO: FIgure out how much confirmation and reputation weighs in decision function
 
+# load libraries
 library(pacman)
 pacman::p_load(tidyverse, tictoc)
 
+# setup randomization paramter for replication
 seed = 15
 set.seed(seed)
-
-
-
-
-
-
 
 # read functions
 source('functions/min_max_scale.R')
@@ -68,7 +61,6 @@ source('functions/agent_decision.R')
 source('functions/group_decision.R')
 source('functions/run_simulation.R')
 source('functions/plot_results.R')
-
 
 ```
 
@@ -83,11 +75,11 @@ group_size            <- 3
 conf_influence_factor <- 0.7
 
 # simulation
-n_trials              <- 200
-group_strategy        <- 'highest_weight'  # c('sample_weighted', 'highest_weight')
-difficulty_mu         <- 1
+n_trials              <- 75
+group_strategy        <- 'sample_weighted'  # c('sample_weighted', 'highest_weight')
+difficulty_mu         <- 1.0
 difficulty_sd         <- 0.3
-prob_error            <- 0.05
+prob_error            <- 0.01
 confirmation_weight   <- 2
 
 ```
@@ -150,36 +142,65 @@ plot_results(sim_baseline, sim_reputation, sim_confirmation)
 
 
 
+
+``` {r Analysis}
+
+
+
+
+sim_baseline <- sim_baseline %>%
+  group_by(group_id) %>% 
+  mutate(knowledge_group_sd = sd(knowledge), group_performance = mean(sum(group_answer) / 3))
+
+
+ggplot(sim_baseline, aes(x = knowledge_group_sd, y = group_performance)) +
+  geom_smooth()
+
+lm(as.data.frame(sim_baseline[sim_baseline$trial_n == 1,]), group_performance ~ knowledge_group_sd)
+
+```
+
+
+
+
 ``` {r Plots}
 
-baseline_summary <- sim_baseline %>% 
-  group_by(trial_n) %>%
-  summarize(performance = mean(group_answer))
-baseline_summary[,"cum_performance"] <- cumsum(baseline_summary$performance)
+sim_baseline <- sim_baseline %>% 
+  group_by(group_id) %>%
+  mutate(group_performance = sum(group_answer / 3))
 
-reputation_summary <- sim_reputation %>% 
-  group_by(trial_n) %>%
-  summarize(performance = mean(group_answer))
-reputation_summary[,"cum_performance"] <- cumsum(reputation_summary$performance)
+sim_reputation <- sim_reputation %>% 
+  group_by(group_id) %>%
+  mutate(group_performance = sum(group_answer / 3))
 
-confirmation_summary <- sim_confirmation %>% 
-  group_by(trial_n) %>%
-  summarize(performance = mean(group_answer))
-confirmation_summary[,"cum_performance"] <- cumsum(confirmation_summary$performance)
+sim_confirmation <- sim_confirmation %>% 
+  group_by(group_id) %>%
+  mutate(group_performance = sum(group_answer / 3))
 
-baseline_summary$condition <- "baseline"
-reputation_summary$condition <- "reputation"
-confirmation_summary$condition <- "confirmation"
 
-summary <- rbind(baseline_summary, reputation_summary, confirmation_summary)
+sim_baseline$Condition <- "Baseline"
+sim_reputation$Condition <- "Reputation"
+sim_confirmation$Condition <- "Confirmation"
 
 
 
-ggplot(summary, aes(x = trial_n, y = cum_performance, color = condition)) +
-  geom_smooth()
 
-ggplot(summary, aes(x = trial_n, y = performance, color = condition)) +
-  geom_smooth()
+summary <- rbind(sim_baseline[sim_baseline$trial_n == max(sim_baseline$trial_n), ],
+                 sim_reputation[sim_reputation$trial_n == max(sim_reputation$trial_n), ],
+                 sim_confirmation[sim_confirmation$trial_n == max(sim_confirmation$trial_n), ])
+
+
+
+
+ggplot(summary, aes(x = group_performance, color = Condition, fill=Condition)) + 
+  geom_density(size=0.9, alpha=.3) +
+  theme_minimal() + 
+  labs(title = 'Density of Group Performance over Condition',
+       x     = 'Group Performance',
+       y     = 'Density')
+
+
+
 
 
 ```

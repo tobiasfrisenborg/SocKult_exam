@@ -33,7 +33,7 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
   
   
   
-  ### RUNNING THE FOR EACH AGENT ###
+  ### RUNNING THE FOR EACH TRIAL ###
   for (trial in 1:n_trials) {
     
     ### SETTING UP TRIAL ###
@@ -57,9 +57,9 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
     
     ### AGENT DECISION & CONFIDENCE###
     set.seed(seed + trial)
-    above_average <- rnorm(length(data$agent_id), mean = 0.8, sd = 0.2)
+    low_difficulty  <- rnorm(length(data$agent_id), mean = 0.8, sd = 0.1)
     set.seed(seed + trial)
-    below_average <- rnorm(length(data$agent_id), mean = 1.4, sd = 0.3)
+    high_difficulty <- rnorm(length(data$agent_id), mean = 1.8, sd = 0.1)
     
     # calculate the agents confidence
     for (agent in 1:length(unique(data$agent_id))) {
@@ -78,13 +78,14 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
       ### AGENT CONFIDENCE CALCULATION ###
       if (difficulty_z[trial] >= 0) {      # if (sim_results$knowledge_z[row_condition] >= 0) {
         set.seed(seed + agent)
-        sim_results$confidence_factor[row_condition] <- sample(above_average, 1) }
+        sim_results$confidence_factor[row_condition] <- sample(low_difficulty, 1) }
       else if (difficulty_z[trial] < 0) {  # else if (sim_results$knowledge_z[row_condition] < 0) {
         set.seed(seed + agent)
-        sim_results$confidence_factor[row_condition] <- sample(below_average, 1) }
+        sim_results$confidence_factor[row_condition] <- sample(high_difficulty, 1) }
       
       sim_results$confidence_unadjusted[row_condition] <-
         sim_results$prob_correct[row_condition] * sim_results$confidence_factor[row_condition]
+        #sim_results$prob_correct[row_condition] * (sim_results$confidence_factor[row_condition] * abs(difficulty_z[trial]))
       
       sim_results$confidence[row_condition] <- agent_prob_adjust(sim_results$confidence_unadjusted[row_condition],
                                                                  prob_error = prob_error)

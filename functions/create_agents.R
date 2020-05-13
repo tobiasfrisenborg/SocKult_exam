@@ -16,7 +16,7 @@ create_agents <- function(n_groups, group_size, conf_influence_factor, seed) {
   
   # scale knowledge for use in future calculations
   agents$knowledge_z       <- scale(agents$knowledge)
-  agents$knowledge_scaled  <- (agents$knowledge_z / 8) + 0.5
+  agents$knowledge_scaled  <- (agents$knowledge_z * 0.15) + 0.5
 
   return(agents)
 }

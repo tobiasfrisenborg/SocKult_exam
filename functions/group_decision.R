@@ -9,9 +9,11 @@ group_decision <- function(a1_answer, a2_answer, a3_answer, a1_weight, a2_weight
   
   # sample answer from groups possible answers
   if (group_strategy == 'sample_weighted') {
+    
     answer <- sample(answer_vec,
                      prob = prob_vec,
                      size = 1)
+  
   } else if (group_strategy == 'highest_weight') {
     
     # select the answer of highest weighted group member
