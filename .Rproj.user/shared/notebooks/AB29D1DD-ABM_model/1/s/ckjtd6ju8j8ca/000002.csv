@@ -1,0 +1,7 @@
+"0",""
+"0","### CREATING AGENTS ###"
+"0","agent_attr       <- create_agents(n_groups              = n_groups,"
+"0","                                  group_size            = group_size,"
+"0","                                  conf_influence_factor = conf_influence_factor,"
+"0","                                  seed                  = seed)"
+"0",""

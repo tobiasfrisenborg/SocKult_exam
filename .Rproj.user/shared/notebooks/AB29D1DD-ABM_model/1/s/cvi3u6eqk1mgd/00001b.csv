@@ -1,0 +1,5 @@
+"0","lm(test, group_performance ~ knowledge_group_sd) %>% summary()
+"
+"2","Error in as.data.frame.default(data) : 
+  cannot coerce class ‘""formula""’ to a data.frame
+"
