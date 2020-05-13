@@ -1,0 +1,413 @@
+---
+title: "Confidence in Joint Decision Making - A Simulation-Based Approach"
+author: "Mie Arnau Martinez & Tobias Frisenborg Christensen"
+date: "4/15/2020"
+output: word_document
+---
+
+#  ABM Specifications and Parameters
+## Properties of Agents
+  - *Knowledge:* Normal distribution with mu=100 and sd=15 (like IQ)
+    **https://www.mensa.org/iq/what-iq**
+  - *Confidence Level:* Factor for confidence calculation, that reflects the mismatch between believed knowledge and true knowledge.
+  - *Confidence:* (knowledge * confidence)
+  - *Reputation:* Proportion of correct responses out of total responses
+
+## Properties of Groups
+  - *Decision:*
+    - Baseline: Confidence is the only factor for the group decision function (equality bias)
+      Weight of agent response is calculated as **confidence / sum(confidence)**
+    - Reputation: All agents can assign weights to their group members answers, based on reputation, to mitigate the equality bias.
+      Weight of agent response is calculated as ...
+        
+    - Confirmation: If other agents have the same response, the weight of that response is increased (confirmation bias).
+      Weight of agent response is calculated as ...
+        
+
+## Updating of properties:
+  - *Reputation:* Proportion of correct responses in decimal percent
+    (Updated at the end of each round)
+
+Experimental setup:
+  - *Manipulated Variables*
+    - Group decision function (baseline/equality, reputation, confirmation)
+    - Confidence
+    - Group composition in relation to proportion of over- and unconfident agents
+  - *Environment:*
+    - Influence of reputation and confirmation bias in multiple models, versus one baseline model (equality bias)
+  - *Outcome:*
+    - Performance of group (mean payoff over trials)
+    - Performance of group (time to find correct solution)
+
+
+
+```{r Setup, include=FALSE}
+
+# TODO: FIgure out how much confirmation and reputation weighs in decision function
+
+# load libraries
+library(pacman)
+pacman::p_load(tidyverse, tictoc)
+
+# setup randomization paramter for replication
+seed = 15
+set.seed(seed)
+
+# read functions
+source('functions/min_max_scale.R')
+source('functions/create_agents.R')
+source('functions/agent_prob_adjust.R')
+source('functions/agent_decision.R')
+source('functions/group_decision.R')
+source('functions/run_simulation.R')
+source('functions/plot_results.R')
+
+```
+
+
+
+``` {r Setup Paramters}
+
+### SETUP PARAMETERS ###
+# agents
+n_groups              <- 50
+group_size            <- 3
+conf_influence_factor <- 0.7
+
+# simulation
+n_trials              <- 75
+group_strategy        <- 'sample_weighted'  # c('sample_weighted', 'highest_weight')
+difficulty_mu         <- 1.0
+difficulty_sd         <- 0.3
+prob_error            <- 0.01
+confirmation_weight   <- 2
+
+```
+
+
+
+``` {r Create Agents}
+
+### CREATING AGENTS ###
+agent_attr       <- create_agents(n_groups              = n_groups,
+                                  group_size            = group_size,
+                                  conf_influence_factor = conf_influence_factor,
+                                  seed                  = seed)
+
+```
+
+
+
+``` {r Simulation}
+
+### RUNNING THE SIMULATION ###
+# baseline condition
+sim_baseline     <- run_simulation(data                 = agent_attr,
+                                   condition            = 'baseline',
+                                   group_strategy       = group_strategy,
+                                   n_trials             = n_trials,
+                                   difficulty_mu        = difficulty_mu,
+                                   difficulty_sd        = difficulty_sd,
+                                   prob_error           = prob_error,
+                                   seed                 = seed)
+
+# reputation condition
+sim_reputation   <- run_simulation(data                 = agent_attr,
+                                   condition            = 'reputation',
+                                   group_strategy       = group_strategy,
+                                   n_trials             = n_trials,
+                                   difficulty_mu        = difficulty_mu,
+                                   difficulty_sd        = difficulty_sd,
+                                   prob_error           = prob_error,
+                                   seed                 = seed)
+
+# confirmation condition
+sim_confirmation <- run_simulation(data                 = agent_attr,
+                                   condition            = 'confirmation',
+                                   group_strategy       = group_strategy,
+                                   confirmation_weight  = confirmation_weight,
+                                   n_trials             = n_trials,
+                                   difficulty_mu        = difficulty_mu,
+                                   difficulty_sd        = difficulty_sd,
+                                   prob_error           = prob_error,
+                                   seed                 = seed)
+
+
+
+### PRINT SOME QUICK PLOTS ###
+plot_results(sim_baseline, sim_reputation, sim_confirmation)
+
+```
+
+
+
+
+
+``` {r Analysis}
+
+
+
+
+sim_baseline <- sim_baseline %>%
+  group_by(group_id) %>% 
+  mutate(knowledge_group_sd = sd(knowledge), group_performance = mean(sum(group_answer) / 3))
+
+
+ggplot(sim_baseline, aes(x = knowledge_group_sd, y = group_performance)) +
+  geom_smooth()
+
+lm(as.data.frame(sim_baseline[sim_baseline$trial_n == 1,]), group_performance ~ knowledge_group_sd)
+
+```
+
+
+
+
+``` {r Plots}
+
+sim_baseline <- sim_baseline %>% 
+  group_by(group_id) %>%
+  mutate(group_performance = sum(group_answer / 3))
+
+sim_reputation <- sim_reputation %>% 
+  group_by(group_id) %>%
+  mutate(group_performance = sum(group_answer / 3))
+
+sim_confirmation <- sim_confirmation %>% 
+  group_by(group_id) %>%
+  mutate(group_performance = sum(group_answer / 3))
+
+
+sim_baseline$Condition <- "Baseline"
+sim_reputation$Condition <- "Reputation"
+sim_confirmation$Condition <- "Confirmation"
+
+
+
+
+summary <- rbind(sim_baseline[sim_baseline$trial_n == max(sim_baseline$trial_n), ],
+                 sim_reputation[sim_reputation$trial_n == max(sim_reputation$trial_n), ],
+                 sim_confirmation[sim_confirmation$trial_n == max(sim_confirmation$trial_n), ])
+
+
+
+
+ggplot(summary, aes(x = group_performance, color = Condition, fill=Condition)) + 
+  geom_density(size=0.9, alpha=.3) +
+  theme_minimal() + 
+  labs(title = 'Density of Group Performance over Condition',
+       x     = 'Group Performance',
+       y     = 'Density')
+
+
+
+
+
+```
+
+
+``` {r Plots}
+
+baseline_summary <- sim_baseline %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer), difficulty = mean(difficulty))
+baseline_summary[,"cum_performance"] <- cumsum(baseline_summary$performance)
+
+reputation_summary <- sim_reputation %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer), difficulty = mean(difficulty))
+reputation_summary[,"cum_performance"] <- cumsum(reputation_summary$performance)
+
+confirmation_summary <- sim_confirmation %>% 
+  group_by(trial_n) %>%
+  summarize(performance = mean(group_answer), difficulty = mean(difficulty))
+confirmation_summary[,"cum_performance"] <- cumsum(confirmation_summary$performance)
+
+
+baseline_summary$condition <- "baseline"
+reputation_summary$condition <- "reputation"
+confirmation_summary$condition <- "confirmation"
+
+summary <- rbind(baseline_summary, reputation_summary, confirmation_summary)
+
+
+
+ggplot(summary, aes(x = difficulty, y = cum_performance, color = condition)) +
+  geom_smooth()
+
+ggplot(summary, aes(x = difficulty, y = performance, color = condition)) +
+  geom_smooth()
+
+
+```
+
+
+
+
+
+
+
+``` {r Plots}
+
+data <- agent_attr
+
+### SIMULATION PARAMETERS ###
+set.seed(seed)
+#difficulty <- c(seq(1, 10))
+difficulty          <- rnorm(n_trials, mean = difficulty_mu, sd=difficulty_sd)
+
+
+
+### STORING RESULTS ###
+column_names = colnames(data)
+sim_results = as.data.frame(matrix(numeric(),
+                                   nrow = 0,
+                                   ncol = length(column_names)))
+colnames(sim_results) = column_names
+
+# loop through all agents
+for (agent in 1:length(data$agent_id)) {
+  # loop through number of trials, duplicating the current row for the amount of trials
+  for (i in 1:n_trials) {
+    rows_written <- (agent - 1) * n_trials  # to decide where this loop will create rows, we calculate the number of rows already written
+    sim_results[rows_written + i, ] <- data[agent, ]  # write the row
+  } }
+
+# assign trial number to a new column
+sim_results$trial_n <- rep(seq(1, n_trials), length(agent_attr$agent_id))
+
+
+
+### RUNNING THE FOR EACH AGENT ###
+for (trial in 1:n_trials) {
+  
+  ### SETTING UP TRIAL ###
+  #save conditional rows for trials in loop
+  condition_trial      <- (sim_results$trial_n == trial)
+  condition_prev_trial <- (sim_results$trial_n == (trial - 1))
+
+  # save difficulty
+  sim_results$difficulty[condition_trial] <- difficulty[trial]
+  
+  # update agents correct response at the start of the trial
+  if (trial == 1) {
+    sim_results$agent_correct_sum[condition_trial] <- 1 }
+  else {  # add previous agent_answer to the agent_correct_sum column
+    sim_results$agent_correct_sum[condition_trial] <-
+      sim_results$agent_correct_sum[condition_prev_trial] + sim_results$agent_answer[condition_prev_trial] }
+  
+  # calculate each agents reputation
+  sim_results$agent_reputation[condition_trial]  <- sim_results$agent_correct_sum[condition_trial] / trial
+  
+  
+  ### AGENT DECISION & CONFIDENCE###
+  set.seed(seed + trial)
+  above_average <- rnorm(length(data$agent_id), mean = 0.8, sd = 0.2)
+  set.seed(seed + trial)
+  below_average <- rnorm(length(data$agent_id), mean = 1.4, sd = 0.3)
+  
+  # calculate the agents confidence
+  for (agent in 1:length(unique(data$agent_id))) {
+
+    # setup row condition
+    condition_agent <- (sim_results$agent_id == agent)
+    row_condition   <- (condition_trial & condition_agent)
+    
+    
+    ### AGENT PROBABILITY ###
+    sim_results$prob_correct_unadjusted[row_condition] <- sim_results$knowledge_scaled[row_condition] * difficulty[trial]
+    sim_results$prob_correct[row_condition] <- agent_prob_adjust(sim_results$prob_correct_unadjusted[row_condition],
+                                                                 prob_error = prob_error)
+    
+    
+    ### AGENT CONFIDENCE CALCULATION ###
+    if (sim_results$knowledge_z[row_condition] >= 0) {
+      set.seed(seed + agent)
+      sim_results$confidence_factor[row_condition] <- sample(above_average, 1) }
+    else if (sim_results$knowledge_z[row_condition] < 0) {
+      set.seed(seed + agent)
+      sim_results$confidence_factor[row_condition] <- sample(below_average, 1) }
+    
+    sim_results$confidence_unadjusted[row_condition] <-
+      sim_results$prob_correct[row_condition] * sim_results$confidence_factor[row_condition]
+    
+    sim_results$confidence[row_condition] <- agent_prob_adjust(sim_results$confidence_unadjusted[row_condition],
+                                                               prob_error = prob_error)
+    
+    ### AGENT DECISION ###
+    sim_results$agent_answer[row_condition] <- agent_decision(sim_results$prob_correct[row_condition],
+                                                              seed = (seed + (agent * trial)) )
+  }  # agent loop end
+  
+  
+  ### CONFIRMATION CONDITION REPUTATION ADJUSTMENT ###
+  if (condition == 'confirmation') {
+    
+    sim_results <- sim_results %>%
+      group_by(group_id, trial_n) %>%
+      mutate(group_answer_sum = sum(agent_answer))
+    
+    # condition to select if two agents in group answered 0
+    condition_0_agree <- ((sim_results$group_answer_sum == 1) & (sim_results$agent_answer == 0))
+    
+    # condition to select if two agents in group answered 1
+    condition_1_agree <- ((sim_results$group_answer_sum == 2) & (sim_results$agent_answer == 0))
+    
+    # if two agents have the same answer, their reputation is multiplied with the confirmation bias weight
+    sim_results$agent_reputation[condition_trial & (condition_0_agree | condition_1_agree)] <- 
+      sim_results$agent_reputation[condition_trial & (condition_0_agree | condition_1_agree)] * confirmation_weight
+  }  # confirmation conditional end
+}  # trial loop end
+
+
+
+### CONDITIONS ###
+# baseline condition
+if (condition == 'baseline') {
+  
+  # calculate the sum of confidence
+  sim_results <- sim_results %>%
+    group_by(group_id, trial_n) %>%
+    mutate(confidence_sum = sum(confidence))
+  
+  # calculate the individual agents answer weight
+  sim_results$answer_weight <- sim_results$confidence / sim_results$confidence_sum
+  print(min(sim_results$confidence))
+
+# reputation- and confirmation conditions
+} else if (condition == 'reputation' | condition == 'confirmation') {
+  
+  sim_results <- sim_results %>%
+    group_by(group_id, trial_n) %>%
+    mutate(weight_sum = sum(confidence * agent_reputation))  # weight of confidence and reputation on group level
+    
+  sim_results$answer_weight <- (sim_results$confidence * sim_results$agent_reputation) / sim_results$weight_sum  # individual agent weight
+}
+
+
+
+### GROUP DECISION ###
+sim_results <- sim_results %>% 
+  group_by(group_id, trial_n) %>% 
+  mutate(group_answer = group_decision(a1_answer = agent_answer[1],
+                                       a2_answer = agent_answer[2],
+                                       a3_answer = agent_answer[3],
+                                       a1_weight = answer_weight[1],
+                                       a2_weight = answer_weight[2],
+                                       a3_weight = answer_weight[3],
+                                       seed      = (seed + trial_n[1])))
+
+
+### PRINT RESULTS ###
+toc()  # timekeeping
+
+message(paste('AVG Difficulty: ', mean(sim_results$difficulty)))
+
+group_results <- sim_results %>%
+  group_by(group_id) %>%
+  mutate(correct_sum = sum(group_answer))
+
+message(paste('AVG Correct:    ', mean((group_results$correct_sum / 3))))
+
+
+```
