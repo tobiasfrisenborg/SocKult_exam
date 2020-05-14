@@ -6,10 +6,13 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
   tic(paste("simulation")) # timekeeping
   message(paste(condition, group_strategy))
   
+  
   ### SIMULATION PARAMETERS ###
   set.seed(seed)
-  #difficulty <- c(seq(1, 10))
-  difficulty          <- rnorm(n_trials, mean = difficulty_mu, sd=difficulty_sd)
+  #difficulty          <- rnorm(n_trials, mean = difficulty_mu, sd=difficulty_sd)
+  #difficulty          <- sort(difficulty)
+  difficulty          <- seq(difficulty_mu - difficulty_sd, difficulty_mu + difficulty_sd, (difficulty_sd * 2) / n_trials)
+  difficulty          <- sample(difficulty)
   difficulty_z        <- scale(difficulty)
   
   
@@ -59,7 +62,7 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
     set.seed(seed + trial)
     low_difficulty  <- rnorm(length(data$agent_id), mean = 0.8, sd = 0.1)
     set.seed(seed + trial)
-    high_difficulty <- rnorm(length(data$agent_id), mean = 1.8, sd = 0.1)
+    high_difficulty <- rnorm(length(data$agent_id), mean = 1.8, sd = 0.4)
     
     # calculate the agents confidence
     for (agent in 1:length(unique(data$agent_id))) {
@@ -76,17 +79,19 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
       
       
       ### AGENT CONFIDENCE CALCULATION ###
-      if (difficulty_z[trial] >= 0) {      # if (sim_results$knowledge_z[row_condition] >= 0) {
+      if (sim_results$prob_correct[row_condition] >= 0.5) {
         set.seed(seed + agent)
-        sim_results$confidence_factor[row_condition] <- sample(low_difficulty, 1) }
-      else if (difficulty_z[trial] < 0) {  # else if (sim_results$knowledge_z[row_condition] < 0) {
+        sim_results$confidence_factor[row_condition] <- 0.8 # sample(low_difficulty, 1)
+        
+      } else if (sim_results$prob_correct[row_condition] < 0.5) {
         set.seed(seed + agent)
-        sim_results$confidence_factor[row_condition] <- sample(high_difficulty, 1) }
+        sim_results$confidence_factor[row_condition] <- 1.8 } # sample(high_difficulty, 1) }
       
+      # calculate confidence before adjust error probability
       sim_results$confidence_unadjusted[row_condition] <-
         sim_results$prob_correct[row_condition] * sim_results$confidence_factor[row_condition]
-        #sim_results$prob_correct[row_condition] * (sim_results$confidence_factor[row_condition] * abs(difficulty_z[trial]))
-      
+
+      # adjust for floor, ceiling and error probabilities
       sim_results$confidence[row_condition] <- agent_prob_adjust(sim_results$confidence_unadjusted[row_condition],
                                                                  prob_error = prob_error)
       
@@ -94,25 +99,6 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
       sim_results$agent_answer[row_condition] <- agent_decision(sim_results$prob_correct[row_condition],
                                                                 seed = (seed + (agent * trial)) )
     }  # agent loop end
-    
-    
-    ### CONFIRMATION CONDITION REPUTATION ADJUSTMENT ###
-    if (condition == 'confirmation') {
-      
-      sim_results <- sim_results %>%
-        group_by(group_id, trial_n) %>%
-        mutate(group_answer_sum = sum(agent_answer))
-      
-      # condition to select if two agents in group answered 0
-      condition_0_agree <- ((sim_results$group_answer_sum == 1) & (sim_results$agent_answer == 0))
-      
-      # condition to select if two agents in group answered 1
-      condition_1_agree <- ((sim_results$group_answer_sum == 2) & (sim_results$agent_answer == 0))
-      
-      # if two agents have the same answer, their reputation is multiplied with the confirmation bias weight
-      sim_results$agent_reputation[condition_trial & (condition_0_agree | condition_1_agree)] <- 
-        sim_results$agent_reputation[condition_trial & (condition_0_agree | condition_1_agree)] * confirmation_weight
-    }  # confirmation conditional end
   }  # trial loop end
   
   
@@ -124,20 +110,51 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
     # calculate the sum of confidence
     sim_results <- sim_results %>%
       group_by(group_id, trial_n) %>%
+      mutate(weight_sum = sum(prob_correct))
+    
+    # calculate the individual agents answer weight
+    sim_results$answer_weight <- sim_results$prob_correct / sim_results$weight_sum
+    
+    # reputation- and confirmation conditions
+  } else if (condition == 'equality') {
+    
+    # calculate the sum of confidence
+    sim_results <- sim_results %>%
+      group_by(group_id, trial_n) %>%
       mutate(confidence_sum = sum(confidence))
     
     # calculate the individual agents answer weight
     sim_results$answer_weight <- sim_results$confidence / sim_results$confidence_sum
-    print(min(sim_results$confidence))
     
     # reputation- and confirmation conditions
-  } else if (condition == 'reputation' | condition == 'confirmation') {
+  } else if (condition == 'reputation') {
     
     sim_results <- sim_results %>%
       group_by(group_id, trial_n) %>%
       mutate(weight_sum = sum(confidence * agent_reputation))  # weight of confidence and reputation on group level
     
     sim_results$answer_weight <- (sim_results$confidence * sim_results$agent_reputation) / sim_results$weight_sum  # individual agent weight
+    
+  } else if (condition == 'confirmation') {
+    
+    sim_results <- sim_results %>%
+      group_by(group_id, trial_n) %>%
+      mutate(group_answer_sum = sum(agent_answer))
+    
+    # condition to select if two agents in group answered 0
+    condition_0_agree <- ((sim_results$group_answer_sum == 1) & (sim_results$agent_answer == 0))
+    
+    # condition to select if two agents in group answered 1
+    condition_1_agree <- ((sim_results$group_answer_sum == 2) & (sim_results$agent_answer == 1))
+    
+    sim_results$confirmation_bias <- 1
+    sim_results$confirmation_bias[condition_0_agree | condition_1_agree] <- confirmation_weight
+    
+    sim_results <- sim_results %>%
+      group_by(group_id, trial_n) %>%
+      mutate(weight_sum = sum(confidence * confirmation_bias * agent_reputation))  # weight of confidence and reputation on group level
+    
+    sim_results$answer_weight <- (sim_results$confidence * sim_results$confirmation_bias * sim_results$agent_reputation) / sim_results$weight_sum  # individual agent weight
   }
   
   
@@ -153,6 +170,9 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
                                          a3_weight      = answer_weight[3],
                                          group_strategy = group_strategy,
                                          seed           = (seed + trial_n[1])))
+  
+  # assign condition
+  sim_results$condition <- condition
   
   
   ### PRINT RESULTS ###

@@ -1,3 +1,0 @@
-"0",""
-"0","ggplot(summary, aes(x = difficulty, y = performance, color = condition)) +"
-"0","  geom_smooth()"
