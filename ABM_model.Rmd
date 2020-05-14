@@ -77,11 +77,11 @@ group_size            <- 3
 conf_influence_factor <- 1
 
 # simulation
-n_trials              <- 40
-group_strategy        <- 'highest_weight'  # c('sample_weighted', 'highest_weight')
+n_trials              <- 75
+group_strategy        <- 'highest_weight'  # c('highest_weight', 'highest_weight')
 difficulty_mu         <- 1.0
 difficulty_sd         <- 0.25
-prob_error            <- 0.01
+prob_error            <- 0.05
 confirmation_weight   <- 2.33
 
 ```
@@ -160,6 +160,47 @@ plot_results(sim_baseline, sim_equality, sim_reputation, sim_confirmation)
 
 ``` {r Analysis}
 
+
+
+
+
+# bind data together
+data <- rbind(sim_baseline, sim_equality, sim_reputation, sim_confirmation)
+
+### CALCULATIONS ###
+# calculate overall group performance
+data <- data %>% 
+  group_by(agent_id, condition) %>% 
+  mutate(group_performance = sum(group_answer))
+
+
+
+for (i in c('baseline', 'equality', 'reputation', 'confirmation')) {
+  message(paste(i, ":"))
+  message(paste("Mean: ", mean(data$group_performance[data$trial_n==max(data$trial_n) & data$condition == i])))
+  message(paste("SD:   ", sd(data$group_performance[data$trial_n==max(data$trial_n) & data$condition == i])))
+  message(paste("\n"))
+  
+}
+
+
+
+
+
+```
+
+
+
+
+``` {r Analysis}
+
+
+
+
+
+
+
+
 # bind data together
 data <- rbind(sim_baseline, sim_equality, sim_reputation, sim_confirmation)
 
@@ -218,6 +259,29 @@ ggplot(data, aes(x = confidence, y = condition, fill = condition)) +
   labs(title = "Group Performance Ridgeline Plot",
        x = "Mean Group Performance",
        y = "")
+
+
+
+
+
+
+
+# bind data together
+data <- rbind(sim_baseline, sim_equality, sim_reputation, sim_confirmation)
+
+
+
+####### Could be cool to do ridgeline with these, sorted by trial difficulty
+ggplot(data[data$difficulty==1,], aes(x = prob_correct)) +
+  geom_density()
+
+ggplot(data[data$difficulty==1,], aes(x = confidence)) +
+  geom_density()
+
+
+ggplot(data[data$difficulty==1.2,], aes(x = confidence, y = knowledge_scaled, color = agent_id)) +
+  geom_point()
+
 
 ```
 

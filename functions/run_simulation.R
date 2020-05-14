@@ -73,7 +73,7 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
       
       
       ### AGENT PROBABILITY ###
-      sim_results$prob_correct_unadjusted[row_condition] <- sim_results$knowledge_scaled[row_condition] * difficulty[trial]
+      sim_results$prob_correct_unadjusted[row_condition] <- sim_results$knowledge_scaled[row_condition] * abs(difficulty[trial] - 2)
       sim_results$prob_correct[row_condition] <- agent_prob_adjust(sim_results$prob_correct_unadjusted[row_condition],
                                                                    prob_error = prob_error)
       
@@ -81,11 +81,11 @@ run_simulation <- function(data, condition, group_strategy, n_trials, difficulty
       ### AGENT CONFIDENCE CALCULATION ###
       if (sim_results$prob_correct[row_condition] >= 0.5) {
         set.seed(seed + agent)
-        sim_results$confidence_factor[row_condition] <- 0.8 # sample(low_difficulty, 1)
+        sim_results$confidence_factor[row_condition] <- sample(low_difficulty, 1)
         
       } else if (sim_results$prob_correct[row_condition] < 0.5) {
         set.seed(seed + agent)
-        sim_results$confidence_factor[row_condition] <- 1.8 } # sample(high_difficulty, 1) }
+        sim_results$confidence_factor[row_condition] <- sample(high_difficulty, 1) }
       
       # calculate confidence before adjust error probability
       sim_results$confidence_unadjusted[row_condition] <-
