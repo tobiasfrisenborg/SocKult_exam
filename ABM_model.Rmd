@@ -163,6 +163,23 @@ plot_results(sim_baseline, sim_equality, sim_reputation, sim_confirmation)
 
 
 
+data <- data %>%
+  group_by(group_id) %>% 
+  mutate(thingy = sd(knowledge))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # bind data together
 data <- rbind(sim_baseline, sim_equality, sim_reputation, sim_confirmation)
